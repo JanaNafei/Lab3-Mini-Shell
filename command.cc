@@ -28,9 +28,82 @@
 #include "command.h"
 #include "tokenizer.h"
 
+bool validate(std::vector<Token> &tokens)
+{
+    if(tokens.empty() )
+    {
+        return false;
+    }
+    if(tokens.back().type != TOKEN_EOF)
+    {
+        std::cerr << "Error: Missing EOF token at the end of the input." << std::endl;
+        return false;
+    }
+    if(tokens.size()==1)
+    {
+        return true;
+    }
+    bool flag=false;
+    for(int i=0;i<tokens.size()-1;i++)
+    {
+        if(tokens[i].type ==TOKEN_COMMAND)
+        {
+            flag=true;
+        }
+        else if(tokens[i].type ==TOKEN_PIPE)
+        {
+            if(!flag)
+            {
+                std::cerr << "Error: Pipe token must be preceded by a command and can not be followed by another pipe." << std::endl;
+                return false;
+            }
+            if(i+1>=tokens.size() || tokens[i+1].type != TOKEN_COMMAND)
+            {
+                std::cerr << "Error: Pipe token must be followed by a command." << std::endl;
+                return false;
+            }
+            flag=false;
+        }
+        if(tokens[i].type == TOKEN_REDIRECT || tokens[i].type == TOKEN_APPEND || tokens[i].type == TOKEN_INPUT || tokens[i].type == TOKEN_ERROR || tokens[i].type == TOKEN_REDIRECT_AND_ERROR)
+        {
+            if(i+1>=tokens.size() || tokens[i+1].type != TOKEN_ARGUMENT)
+            {
+                std::cerr << "Error: Redirect token must be followed by an argument." << std::endl;
+                return false;
+            }
+        }
+        if (tokens[i].type == TOKEN_BACKGROUND)
+        {
+            if (i != tokens.size() - 2)
+            {
+                std::cerr << "Error: '&' must appear at the end of the command."
+                        << std::endl;
+                return false;
+            }
+        }
+
+    }
+    if(!flag)
+    {
+        std::cerr << "Error: Missing command." << std::endl;
+        return false;
+    }
+    return true;
+}
+
 
 void parse(std::vector<Token> &tokens)
 {
+
+    if(tokens.empty() || tokens[0].type == TOKEN_EOF)
+    {
+        return;
+    }
+    if(!validate(tokens))
+    {
+        return;
+    }
+
     Command currentCommand;
     SimpleCommand *currentSimpleCommand = new SimpleCommand();
 
@@ -43,19 +116,12 @@ void parse(std::vector<Token> &tokens)
     */
         for (int i=0; i<tokens.size();i++)
         {    
-            if(tokens[i].type == TOKEN_COMMAND)
+            if(tokens[i].type == TOKEN_COMMAND || tokens[i].type == TOKEN_ARGUMENT)
             {
                 char *currentargument = strdup(tokens[i].value.c_str());
                 currentSimpleCommand -> insertArgument(currentargument);
             }
-            else if(tokens[i].type == TOKEN_ARGUMENT)
-            {
-                if(tokens[i-1].type != TOKEN_REDIRECT && tokens[i-1].type != TOKEN_APPEND && tokens[i-1].type != TOKEN_INPUT && tokens[i-1].type != TOKEN_ERROR && tokens[i-1].type != TOKEN_REDIRECT_AND_ERROR)
-                {
-                    char *currentargument = strdup(tokens[i].value.c_str());
-                    currentSimpleCommand -> insertArgument(currentargument);
-                }
-            }
+        
             else if(tokens[i].type == TOKEN_REDIRECT)
             {
                 if(i+1 < tokens.size() && tokens[i+1].type == TOKEN_ARGUMENT)
@@ -142,7 +208,9 @@ void parse(std::vector<Token> &tokens)
             }
         }
 
-        
+        currentCommand.print();
+currentCommand.clear();
+free(currentCommand._simpleCommands);
 
    //currentCommand.execute();
 }
