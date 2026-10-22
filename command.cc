@@ -34,13 +34,117 @@ void parse(std::vector<Token> &tokens)
     Command currentCommand;
     SimpleCommand *currentSimpleCommand = new SimpleCommand();
 
-    currentCommand.execute();
+    
     /*
       Implement this function 
       you must parse for all possible tokens scenario
       right now command.execute only print the format , you will inject it in your logic.
 
     */
+        for (int i=0; i<tokens.size();i++)
+        {    
+            if(tokens[i].type == TOKEN_COMMAND)
+            {
+                char *currentargument = strdup(tokens[i].value.c_str());
+                currentSimpleCommand -> insertArgument(currentargument);
+            }
+            else if(tokens[i].type == TOKEN_ARGUMENT)
+            {
+                if(tokens[i-1].type != TOKEN_REDIRECT && tokens[i-1].type != TOKEN_APPEND && tokens[i-1].type != TOKEN_INPUT && tokens[i-1].type != TOKEN_ERROR && tokens[i-1].type != TOKEN_REDIRECT_AND_ERROR)
+                {
+                    char *currentargument = strdup(tokens[i].value.c_str());
+                    currentSimpleCommand -> insertArgument(currentargument);
+                }
+            }
+            else if(tokens[i].type == TOKEN_REDIRECT)
+            {
+                if(i+1 < tokens.size() && tokens[i+1].type == TOKEN_ARGUMENT)
+                {
+                    char *currentargument = strdup(tokens[i+1].value.c_str());
+                    currentCommand._outFile = currentargument;
+                    i++;
+                }
+                else 
+                {
+                    std::cerr << "Error: Expected argument after redirect token." << std::endl;
+                }
+            }
+            else if(tokens[i].type ==TOKEN_APPEND)
+            {
+                if(i+1 < tokens.size() && tokens[i+1].type == TOKEN_ARGUMENT)
+                {
+                    char *currentargument = strdup(tokens[i+1].value.c_str());
+                    currentCommand._append = 1;
+                    currentCommand._outFile = currentargument;
+                    i++;
+                }
+                else 
+                {
+                    std::cerr << "Error: Expected argument after redirect token." << std::endl;
+                }
+            }
+            else if(tokens[i].type ==TOKEN_INPUT)
+            {
+                if(i+1 < tokens.size() && tokens[i+1].type == TOKEN_ARGUMENT)
+                {
+                    char *currentargument = strdup(tokens[i+1].value.c_str());
+                    
+                    currentCommand._inputFile = currentargument;
+                    i++;
+                }
+                else 
+                {
+                    std::cerr << "Error: Expected argument after redirect token." << std::endl;
+                }
+            }
+            else if(tokens[i].type ==TOKEN_ERROR)
+            {
+                if(i+1 < tokens.size() && tokens[i+1].type == TOKEN_ARGUMENT)
+                {
+                    char *currentargument = strdup(tokens[i+1].value.c_str());
+                    
+                    currentCommand._errFile = currentargument;
+                    i++;
+                }
+                else 
+                {
+                    std::cerr << "Error: Expected argument after redirect token." << std::endl;
+                }
+            }
+            else if(tokens[i].type ==TOKEN_REDIRECT_AND_ERROR)
+            {
+                if(i+1 < tokens.size() && tokens[i+1].type == TOKEN_ARGUMENT)
+                {
+                    char *currentargument = strdup(tokens[i+1].value.c_str());
+                    currentCommand._out_error = 1;
+                    currentCommand._errFile = currentargument;
+                    currentCommand._append = 1;
+                    i++;
+                }
+                else 
+                {
+                    std::cerr << "Error: Expected argument after redirect token." << std::endl;
+                }
+            }
+            else if(tokens[i].type ==TOKEN_BACKGROUND)
+            {
+                currentCommand._background =1 ;
+            }
+            else if(tokens[i].type == TOKEN_PIPE)
+            {
+                currentCommand.insertSimpleCommand(currentSimpleCommand);
+                currentSimpleCommand = new SimpleCommand();
+            }
+            else if(tokens[i].type == TOKEN_EOF)
+            {
+                currentCommand.insertSimpleCommand(currentSimpleCommand);
+                break;
+            }
+        }
+
+        
+
+   //currentCommand.execute();
 }
 
 SimpleCommand::SimpleCommand()
@@ -70,7 +174,7 @@ Command::Command()
     _numberOfAvailableSimpleCommands = 1;
     _numberOfSimpleCommands = 0;
     _simpleCommands = (SimpleCommand **)
-        malloc(_numberOfSimpleCommands * sizeof(SimpleCommand *));
+        malloc(_numberOfAvailableSimpleCommands * sizeof(SimpleCommand *));
 
     
     _outFile = NULL;
