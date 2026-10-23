@@ -1,0 +1,6 @@
+hello
+world
+jana
+output.txt
+ls: cannot access 'saxkj': No such file or directory
+output.txt

@@ -382,6 +382,7 @@ void Command::execute()
 
     pid_t pid = fork();
 
+    //error 
      if (pid < 0)
     {
         perror("fork");
@@ -395,6 +396,81 @@ void Command::execute()
     //child
     if(pid == 0)
     { 
+        if(_outFile != NULL)
+        {
+            int fd;
+            if(_append)
+            {
+                 fd = open(_outFile,O_WRONLY | O_CREAT | O_APPEND, 0644);
+            }
+            else{
+                fd = open(_outFile,O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            }
+            if (fd == -1)
+            {
+                perror("open");
+                _exit(1);
+            }
+            if(dup2(fd,1)==-1)
+            {
+                perror("dup2");
+                _exit(1);
+            }
+            close(fd);
+            
+        }
+        if(_inputFile != NULL)
+        {
+            int fd = open(_inputFile,O_RDONLY);
+            if (fd == -1)
+            {
+                perror("open");
+                _exit(1);
+            }
+            if(dup2(fd,0)==-1)
+            {
+                perror("dup2");
+                _exit(1);
+            }
+            close(fd);
+        }
+        
+        if (_out_error == 1)
+        {
+            int fd = open(_errFile,O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (fd == -1)
+            {
+                perror("open");
+                _exit(1);
+            }
+            if(dup2(fd,1)==-1)
+            {
+                perror("dup2");
+                _exit(1);
+            }
+            if(dup2(fd,2)==-1)
+            {
+                perror("dup2");
+                _exit(1);
+            }
+            close(fd);
+
+        }
+        else if(_errFile != NULL) //must be after ou_error because it is a special case of error redirection and i placed else if so that it doesnot do both
+        {
+            int fd = open(_errFile,O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd == -1)
+            {
+                perror("open");
+                _exit(1);
+            }
+            if(dup2(fd,2)==-1)
+            {
+                perror("dup2");
+                _exit(1);
+            }
+            close(fd);
+        }
         execvp(current->_arguments[0], current->_arguments);
         perror(current->_arguments[0]);
         exit(127);
