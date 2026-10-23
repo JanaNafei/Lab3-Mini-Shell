@@ -27,6 +27,7 @@
 #include <sstream>
 #include "command.h"
 #include "tokenizer.h"
+#include <cerrno>
 
 bool validate(std::vector<Token> &tokens)
 {
@@ -44,8 +45,24 @@ bool validate(std::vector<Token> &tokens)
         return true;
     }
     bool flag=false;
+    
     for(int i=0;i<tokens.size()-1;i++)
     {
+        if (tokens[i].type == TOKEN_REDIRECT ||
+        tokens[i].type == TOKEN_APPEND ||
+        tokens[i].type == TOKEN_INPUT ||
+        tokens[i].type == TOKEN_ERROR ||
+        tokens[i].type == TOKEN_REDIRECT_AND_ERROR)
+        {
+        if (!flag)
+                {
+            std::cerr << "Error: Command must come before redirection."
+                      << std::endl;
+            return false ;
+                }
+        }
+
+
         if(tokens[i].type ==TOKEN_COMMAND)
         {
             flag=true;
@@ -79,6 +96,14 @@ bool validate(std::vector<Token> &tokens)
                 std::cerr << "Error: '&' must appear at the end of the command."
                         << std::endl;
                 return false;
+            }
+            for (int j = 0; j < i; j++)
+            {
+                if (tokens[j].type == TOKEN_BACKGROUND)
+                {
+                    std::cerr << "Error: Only one & is allowed." << std::endl;
+                    return false;
+                }
             }
         }
 
@@ -208,11 +233,11 @@ void parse(std::vector<Token> &tokens)
             }
         }
 
-        currentCommand.print();
-currentCommand.clear();
-free(currentCommand._simpleCommands);
+        //currentCommand.print();
+//currentCommand.clear();
+//free(currentCommand._simpleCommands);
 
-   //currentCommand.execute();
+   currentCommand.execute();
 }
 
 SimpleCommand::SimpleCommand()
@@ -335,8 +360,29 @@ void Command::execute()
     /*
         Write your code here
     */
+   
+   if(_numberOfSimpleCommands == 0 || _simpleCommands == NULL || _simpleCommands[0] == NULL)
+   {
+   std::cerr << "Error: Empty command." << std::endl;
+   clear();
+   free(_simpleCommands);
+   _simpleCommands=NULL;
+   return;
+   }
+   SimpleCommand *current = _simpleCommands[0];
+   if (current->_numberOfArguments == 0 ||
+        current->_arguments[0] == NULL)
+    {
+        std::cerr << "Error: Empty command." << std::endl;
+        clear();
+        free(_simpleCommands);
+        _simpleCommands = NULL;
+        return;
+    }
 
     clear();
+    free(_simpleCommands);
+    _simpleCommands = NULL;
     prompt();
 }
 
