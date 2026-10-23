@@ -46,7 +46,7 @@ bool validate(std::vector<Token> &tokens)
     }
     bool flag=false;
     
-    for(int i=0;i<tokens.size()-1;i++)
+    for(size_t i=0;i<tokens.size()-1;i++)
     {
         if (tokens[i].type == TOKEN_REDIRECT ||
         tokens[i].type == TOKEN_APPEND ||
@@ -97,7 +97,7 @@ bool validate(std::vector<Token> &tokens)
                         << std::endl;
                 return false;
             }
-            for (int j = 0; j < i; j++)
+            for (size_t j = 0; j < i; j++)
             {
                 if (tokens[j].type == TOKEN_BACKGROUND)
                 {
@@ -139,7 +139,7 @@ void parse(std::vector<Token> &tokens)
       right now command.execute only print the format , you will inject it in your logic.
 
     */
-        for (int i=0; i<tokens.size();i++)
+        for (size_t i=0; i<tokens.size();i++)
         {    
             if(tokens[i].type == TOKEN_COMMAND || tokens[i].type == TOKEN_ARGUMENT)
             {
@@ -378,6 +378,39 @@ void Command::execute()
         free(_simpleCommands);
         _simpleCommands = NULL;
         return;
+    }
+
+    pid_t pid = fork();
+
+     if (pid < 0)
+    {
+        perror("fork");
+
+        clear();
+        free(_simpleCommands);
+        _simpleCommands = NULL;
+        return;
+    }
+
+    //child
+    if(pid == 0)
+    { 
+        execvp(current->_arguments[0], current->_arguments);
+        perror(current->_arguments[0]);
+        exit(127);
+    }
+
+    //parent
+    int status_child;
+    while(waitpid(pid, &status_child,0) == -1)
+    {
+            if(errno == EINTR)
+            {
+                continue;
+            }
+
+            perror("waitpid");
+            break;
     }
 
     clear();
