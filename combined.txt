@@ -1,0 +1,15 @@
+ls: cannot access 'nonexistent_file': No such file or directory
+.:
+Makefile
+README.md
+combined.txt
+command.cc
+command.h
+error.txt
+input.txt
+myshell
+output.txt
+result.txt
+test.txt
+tokenizer.cc
+tokenizer.h

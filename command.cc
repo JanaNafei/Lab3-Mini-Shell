@@ -380,6 +380,254 @@ void Command::execute()
         return;
     }
 
+    
+    if (_numberOfSimpleCommands >= 2)
+{
+    int previous_read = -1;
+    std::vector<pid_t> childPids;
+    bool launch_failed = false;
+
+    // execute each command in the pipeline.
+    for (int i = 0; i < _numberOfSimpleCommands; i++)
+    {
+        int pipefd[2] = {-1, -1};
+
+        // Every command except the last needs a new pipe.
+        if (i < _numberOfSimpleCommands - 1)
+        {
+            //if pipe connection failed
+            if (pipe(pipefd) == -1)
+            {
+                perror("pipe");
+                launch_failed = true;
+                break;
+            }
+        }
+
+        pid_t pid = fork();
+
+        if (pid == -1)
+        {
+            perror("fork");
+
+            if (pipefd[0] != -1)
+                close(pipefd[0]);
+
+            if (pipefd[1] != -1)
+                close(pipefd[1]);
+
+            if (previous_read != -1)
+                close(previous_read);
+
+            launch_failed = true;
+            break;
+        }
+
+        // CHILD PROCESS
+        if (pid == 0)
+        {
+            // 1. Read from the previous command's pipe.
+            if (previous_read != -1)
+            {
+                if (dup2(previous_read, 0) == -1)
+                {
+                    perror("dup2");
+                    _exit(1);
+                }
+            }
+
+            // 2. Send output to the next command's pipe.
+            if (pipefd[1] != -1)
+            {
+                if (dup2(pipefd[1], 1) == -1)
+                {
+                    perror("dup2");
+                    _exit(1);
+                }
+            }
+
+            // Close pipe descriptors that this child no longer needs.
+            if (previous_read != -1)
+                close(previous_read);
+
+            if (pipefd[0] != -1)
+                close(pipefd[0]);
+
+            if (pipefd[1] != -1)
+                close(pipefd[1]);
+
+            // 3. Input redirection applies to the first command.
+            if (i == 0 && _inputFile != NULL)
+            {
+                int fd = open(_inputFile, O_RDONLY);
+
+                if (fd == -1)
+                {
+                    perror("open input");
+                    _exit(1);
+                }
+
+                if (dup2(fd, 0) == -1)
+                {
+                    perror("dup2 input");
+                    close(fd);
+                    _exit(1);
+                }
+
+                close(fd);
+            }
+
+            // 4. Output redirection applies to the last command.
+            if (i == _numberOfSimpleCommands - 1 &&
+                _outFile != NULL)
+            {
+                int flags = O_WRONLY | O_CREAT;
+
+                if (_append)
+                    flags |= O_APPEND;
+                else
+                    flags |= O_TRUNC;
+
+                int fd = open(_outFile, flags, 0644);
+
+                if (fd == -1)
+                {
+                    perror("open output");
+                    _exit(1);
+                }
+
+                if (dup2(fd, 1) == -1)
+                {
+                    perror("dup2 output");
+                    close(fd);
+                    _exit(1);
+                }
+
+                close(fd);
+            }
+
+            // 5, Error redirection applies to the last command.
+            if (i == _numberOfSimpleCommands - 1)
+            {
+                if (_out_error == 1)
+                {
+                    int fd = open(
+                        _errFile,
+                        O_WRONLY | O_CREAT | O_APPEND,
+                        0644
+                    );
+
+                    if (fd == -1)
+                    {
+                        perror("open stdout and stderr");
+                        _exit(1);
+                    }
+
+                    if (dup2(fd, 1) == -1 ||
+                        dup2(fd, 2) == -1)
+                    {
+                        perror("dup2 stdout and stderr");
+                        close(fd);
+                        _exit(1);
+                    }
+
+                    close(fd);
+                }
+                else if (_errFile != NULL)
+                {
+                    int fd = open(
+                        _errFile,
+                        O_WRONLY | O_CREAT | O_TRUNC,
+                        0644
+                    );
+
+                    if (fd == -1)
+                    {
+                        perror("open stderr");
+                        _exit(1);
+                    }
+
+                    if (dup2(fd, 2) == -1)
+                    {
+                        perror("dup2 stderr");
+                        close(fd);
+                        _exit(1);
+                    }
+
+                    close(fd);
+                }
+            }
+
+            // 6. Execute this pipeline command.
+            SimpleCommand *current = _simpleCommands[i];
+
+            execvp(
+                current->_arguments[0],
+                current->_arguments
+            );
+
+            // Reached only if execvp fails.
+            perror(current->_arguments[0]);
+            _exit(127);
+        }
+
+        // PARENT PROCESS
+
+        
+        childPids.push_back(pid);
+
+        // The parent must close its copy of the previous pipe's
+        // read end because it is no longer needed.
+        if (previous_read != -1)
+        {
+            close(previous_read);
+        }
+
+        // The parent does not write into the current pipe.
+        if (pipefd[1] != -1)
+        {
+            close(pipefd[1]);
+        }
+
+        // Keep the current pipe's read end for the next command.
+        previous_read = pipefd[0];
+    }
+
+    // Close any remaining read end.
+    if (previous_read != -1)
+    {
+        close(previous_read);
+    }
+
+    // Wait only after attempting to launch all pipeline commands.
+    // Background pipelines should not block the shell here.
+    if (!_background)
+    {
+        for (pid_t childPid : childPids)
+        {
+            int status_child;
+
+            while (waitpid(childPid, &status_child, 0) == -1)
+            {
+                if (errno == EINTR)
+                    continue;
+
+                perror("waitpid");
+                break;
+            }
+        }
+    }
+
+    // If launching failed, any already-started foreground children
+    // are still waited for above.
+    if (launch_failed)
+{
+    fprintf(stderr, "Error: Pipeline could not be fully started.\n");
+}
+}
+
+    else if(_numberOfSimpleCommands == 1)
+    {
     pid_t pid = fork();
 
     //error 
@@ -396,6 +644,7 @@ void Command::execute()
     //child
     if(pid == 0)
     { 
+        
         if(_outFile != NULL)
         {
             int fd;
@@ -488,21 +737,25 @@ void Command::execute()
             perror("waitpid");
             break;
     }
-
+}
     clear();
     free(_simpleCommands);
     _simpleCommands = NULL;
-    prompt();
+    //prompt();
 }
 
 void Command::prompt()
 {
-    printf("myshell>");
+    
     fflush(stdout);
     std::string input;
     while (true)
     {
-        std::getline(std::cin, input); 
+        printf("myshell>");
+        if(!std::getline(std::cin, input))
+        {
+            break;
+        }
         std::vector<Token> tokens = tokenize(input);
         parse(tokens);
     }
