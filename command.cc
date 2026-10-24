@@ -380,6 +380,17 @@ void Command::execute()
         return;
     }
 
+    if (strcmp(current->_arguments[0],"exit")==0)
+    {
+        printf("Good bye!!\n");
+        clear();
+    free(_simpleCommands);
+    _simpleCommands = NULL;
+     
+    exit(0);
+    
+    }
+    
     
     if (_numberOfSimpleCommands >= 2)
 {
@@ -766,6 +777,7 @@ SimpleCommand *Command::_currentSimpleCommand;
 
 int main()
 {
+    signal(SIGINT,SIG_IGN);
     Command::_currentCommand.prompt();
     return 0;
 }
